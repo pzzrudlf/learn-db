@@ -1,0 +1,306 @@
+1. 	mysql -u root -h localhost -p
+	set names gbk/utf8;
+	show databases;
+	create database test;
+	use test;
+	show tables;
+	create table stu(id int, title varchar(60), name varchar(10), content varchar(1000));
+	desc stu;
+	rename table stu to student;
+	drop table student;
+	drop database test;
+2.	insert into stu(id, title, name, content) values (), (), ();
+	update stu set id=:id,title=:title,name=:name,content=:content where id=:id;
+	delete from stu where id=:id; //删除的是整个一行记录
+3.	建表：声明列的过程
+	数据是以文件的形式保存在硬盘上
+	列：不同的列类型占的空间不一样，选列的原则：够用，不浪费
+4.	列类型：
+	整型				占据空间			存储范围
+		tinyint		1byte			0--255//-128–127(默认是有符号的)
+		smallint	2byte			0-2
+		mediumint	3byte
+		int			4byte
+		bigint		8byte
+	整型列的三个可选属性
+		tinyint(M) unsigned zerofill           
+		M:宽度(在zerofill的时候才有意义，影响显示效果，不影响实际数据)
+		unsigned: 无符号类型(非负)，影响存储范围
+		zerofill:	零填充，如果某列zerofill长度一样，无符号
+		默认值：	not null default 0(默认值，推荐使用默认值)
+	小数型/浮点型，定点型
+		字节：4或者8
+		Float(M,D)	M:代表总位数，D代表小数位，M会影响存储范围
+		float(4,2) -99.99……+99.99
+		float(4,2) unsigned 0.00……99.99
+		Decimal(M,D) 更精确
+	字符型
+		char:定长 char(M),M代表宽度，可容纳的字符数(不是字节数)
+		varchar：变长 varchar(M),M代表宽度，可容纳的字符数(不是字节数)
+		
+		区别：
+			定长：M个字符，如果保存的小于M个字符，实占M个字符，其余内部使用空格补齐 0<=M<=255 速度快, 内容可能会丢失
+			不定长：M个字符，[0，65535]个字节(以ascii字符为例，utf8 M<=65535/3个字符左右, gbk编码下，M<=65535/2个字符左右)，实存字符i个，i字符+（1-2）字节/（i+（1-2）） 速度慢，内容不会丢失
+		
+		选择原则：	空间利用率，四字成语表 char(4) 微博最大140字varchar(140)
+					速度
+
+		text：不能全文索引，文本类型，范围受字符集影响，不能加默认值，sql语句会报错。
+
+	时期/时间型
+		year:1901-2155 1byte 加单引号，如果输入2位， 00->99 表示 2000-2069 70->99 表示 1970-1999		
+		date: 1000-01-01->9999.12.31 加单引号
+		time: -838:59:59->838:59:59 加单引号
+		datetime: Y:m:d hh:mm:ss 加单引号
+		
+		时间戳：用int类型存储时间戳，方便计算，也方便格式化，是从1970-01-01 00:00:00 到当前的秒数
+5.增删改查
+
+	建表语句：	
+	create table 表名 (
+	列名称 列类型 [列属性][默认值],
+	…
+	)engine 引擎名 charset 字符集;
+
+	insert 往哪张表添加？给哪几列添加值？分别是什么值？
+	update 改哪张表？你需要改哪几列的值？分别改为什么值？在哪些行生效？where express 表达式的理解尤为重要！！！
+	delete 删除哪张表的数据？哪些行数据？
+6.select
+	查询的五种子句，有顺序要求，按照此顺序书写：where--条件查询, group by--分组, having--筛选, order by—排序, limit—限制结果条数
+
+	where 比较运算符,每一行去比较来看。	
+				<,<=,>,>=,!=,<>,in (x,y,z), between x and y
+		  逻辑运算符
+				not, or, and
+	模糊查询：
+			案例：想查找“诺基亚”开头的所有商品
+			like：	% 通配任意字符 	__ 单个字符
+==============================================================================================================================
+	group by
+		与五个聚合函数一起使用才有意义；
+			max,min,sum,avg,count，要把列名当成变量名来看
+			可以给列名或计算结果取别名 as
+ ==================================================================================================	
+create table stu(
+name char(3),
+subject char(3),
+score tinyint
+)charset utf8;
+	having
+		select 中的 where 对表文件中各种列起作用，having 对结果中的列起作用.当既有where，也有having的时候，where子语句一定在having语句之前。
+		select name,avg(score) as pj from stu group by name having sum(score<60) >=2;
+
+		select name,any_value(course),any_value(score) from stus where name like '张%'  group by name having avg(score)>75;#avg不要放到列计算中，因为这样会增加查询时间，这里有个1055错误，关于sql_mode的配置问题的。
+
+
+===============================================================================================================
+	order by
+		排序 可以根据字段排序，可以升序排，也可以降序desc排，默认升序asc排列。
+		可以按多字段进行排列，各个字段以逗号分隔即可。
+========================================================================================================================
+	limit[offset,][N]
+	offset:偏移量，如果不写，limit 0,N
+	N:取出条目数量
+	
+	取出每个栏目下最贵的商品？
+	select * from (select cat_id,goods_id,goods_name,shop_price from goods order by cat_id asc,shop_price desc) as tmp group by cat_id;
+	
+	select goods_id,cat_id,goods_name,shop_price from goods where shop_price in (select max(shop_price) from goods group by cat_id); where型子查询	
+
+	思考模型：
+		where表达式，把表达式放到行中，看表达式是否为真
+		列：理解成变量，可以运算
+		取出结果可以看成一张临时表
+
+==============================================================================================================
+
+7.子查询
+
+	where型子查询，
+		把内层的查询结果作为外层查询的比较条件
+		select goods_id,cat_id,goods_name,shop_price from goods where shop_price in (select max(shop_price) from goods group by cat_id); where型子查询		典型案例：查询最大商品，最贵商品
+	from型子查询，
+		把内层的查询结果当成临时表，供外层sql再次查询。必须要有别名。
+		典型案例：查询每个栏目下的最贵/最新商品
+	exists型子查询
+		把外层的查询结果，拿到内层，看内层的查询是否成立,
+		典型案例：查询有商品的栏目
+		select cat_id,cat_name from category where exists (select * from goods where goods.cat_id = category.cat_id);
+
+	
+	select name,avg(score) from stu group by name having sum(score<60) >=2;
+==============================================================================================================
+
+8.union的用法 合并查询结果
+	例句：select goods_id,goods_name,shop_price from goods where shop_price > 5000 union select goods_id,goods_name,shop_price from goods where shop_price < 20; 
+	要求： 两次查询的列数一致即可,推荐查询的每一列相对应的列类型也一样。
+		可以来自于多张表，此时以第一个sql的列名为准！！！
+		如果不同的语句中取出的行，有完全相同的（每个列的值都相同），那么相同的行将会合并（去重复）。如果不去重复，那么可以加all union all
+		select id,sum(num) from (select * from ta union all select * from tb) as tmp group by id;
+		如果子语句中有order by，limit，则需要给select加小括号，推荐放到 所有子句之后，即—对最终合并后的结果来排序。
+		
+		在子语句中，order by配合limit使用才有意义，如果order by 不配合limit 使用，会被语法分析器优化分析时，去除。
+
+		集合 set
+		特性： 无序性，唯一性
+		一张表就是一个集合，一行数据是集合的一个元素，理论上，不可能存在完全相同的两个行，但是表中可以完全相同的行
+		因为表内部有一个rowid
+		笛卡尔积 === 集合的完全组合
+
+	连接查询 
+			左连接 select goods_id,goods.cat_id,cat_name,goods_name,shop_price from goods left join category on goods.cat_id = category.cat_id;
+				以左表为准，去右表查找匹配数据，找不到用NULL补齐
+				A left join B =====> B right join A
+			右连接
+			内连接
+				查询左右连接都有的数据，即：不要左/右连接中NULL的那一部分、				左右连接的交集。
+
+			目前mysql不能查询左右连接的并集。但是可以用union来查询出并集。
+9.列的增加，删除与修改		
+		alter table tableName add height tinyint unsigned not null default 157 first/after columnName;增加的列默认在表的最后一列
+		alter table tableName change 被改变的列名 列声明;
+		alter table tableNae drop 列名;
+==============================================================================================================
+
+10. 视图
+	视图:由查询结果形成的虚拟表
+	create view algorithm=merge/temptable viewName as select 语句;
+	drop view viewName;
+	alter view viewName as select ****;
+	a。简化查询
+	b。可以进行权限控制
+	c。大数据分表时可以用到
+	d。用视图，把4张表形成一张视图	create view news as select * from n1 unoin select * from n2 union…
+	
+	视图是数据表的查询结果，投影，表的数据改变，视图的结果也改变了。
+
+	视图改变了，会影响表，但是视图并不总是能增删改的。
+	
+	当视图的数据与表的数据一一对应的时候，可以修改，对于视图insert操作，还应该注意：视图必须包含表中没有的默认值的列
+
+	视图的algorithm
+		merge/temptable/undefined
+		merge: 当引用视图时，引用视图的语句与定义视图的语句合并。
+		temptable:	当引用视图时，根据视图的创建语句建立一个临时表。
+		undefined: 未定义，自动让系统帮你选。
+
+===============================================================================================================
+
+11.字符集与校对集
+	create table tableName()engine myisam charset utf8 collate utf8_general_ci;
+	mysql字符集设置：
+		数据库默认字符集，
+		表默认字符集，
+		列默认字符集，
+	如果某一个级别没有指定字符集，则继承上一级字符集。
+	以表声明utf8为例.
+	存储的数据在表中，最终是utf8存储。
+	set names utf8;
+
+					character_set_client=utf8;
+					character_set_connection=utf8;
+					characer_set_results=utf8;
+
+	校对集是字符集的排序规则
+	一种字符集可以有一个或者多个排序规则
+===========================================================================================
+12. 事务innodb：指一组操作，要么都成功执行，要么都不执行——》原子性  atomicity
+		  
+         在所有的操作没有执行完毕之前，其他会话不能够看到中间的改变过程——〉隔离性 isolation
+
+
+		  事务发生前后，数据总额依然匹配——》一致性 consistency
+
+		  事务产生的影响不能撤销———〉持久性 durability
+			
+		  如果出现了错误，事务也不允许撤销，只能通过“补偿事务”
+
+		start transaction;
+		sql;
+		commit/rollback
+		当一个事务commit/rollback之后就结束了
+
+
+		会造成隐式提交的语句
+13.备份与恢复
+		
+	整体备份、增量备份
+	
+	mysqldump可以导出
+	表	mysqldump -uroot -ppzzrudlf test stu account girl boy>/home/pzzrudlf/backup/stu.sql
+	库	mysqldump -uroot -ppzzrudlf -B test shop>/dir/filename.sql
+	所有库mysqldump -uroot -ppzzrudlf -A > /dir/filename.sql
+
+
+	恢复：
+	对于库级的备份文件
+	mysql>source /dir/filename.sql;
+	对于表级的备份文件
+	mysql>use test;
+	mysql>source /dir/fielname.sql;
+
+
+	mysql -uroot -ppzzrudlf [库名]</dir/filename.sql
+
+
+14.索引:针对数据建立的目录 btree/hash
+	作用：加快查询速度
+	降低了增删改的速度
+
+	案例：
+	设有新闻表15列，10列上有索引，共500w行数据，如何快速导入？
+	1.把空表的索引全部删除
+	2.导入数据
+	3.数据导入完毕后，集中建立索引
+
+	索引的创建原则：
+	1.不要过度索引
+	2.在where条件最频繁的列上加
+	3.尽量索引散列值，过于集中的值加索引意义不大
+
+	索引类型：
+	普通索引：index 仅仅加快查询速度
+	唯一索引：unique 行上的值不能重复
+	主键索引：primary key不能重复
+			主键必唯一，但是唯一索引不一定是主键
+			一张表上，只能有一个主键，但是可以有一个或者多个唯一索引
+	全文索引：fulltext 
+			select * from tableName where match(全文索引名) against (‘关键字’);
+			全文索引停止词：全文索引不对非常频繁的词做索引。
+			全文索引：在mysql默认下，对中文意义不大，因为英文有空格，标点符号来拆分单词。
+	组合索引：
+
+	show index from 表名;
+	alter table 表名 add index/unique/fulltext [索引名](列名);
+	alter table 表名 add primary key (列名);
+	alter table 表名 drop index 索引名;
+
+
+15.存储过程 procedure
+	create procedure p1()
+	begin
+		select * from g;
+	end$
+
+	show procedure status;
+	drop procedure 存储过程名字;
+
+	call 存储过程名字();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
